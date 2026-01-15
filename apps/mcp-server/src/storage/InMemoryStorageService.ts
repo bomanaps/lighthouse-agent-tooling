@@ -65,7 +65,7 @@ export class InMemoryStorageService implements IStorageService {
    */
   listFiles(limit?: number, offset?: number): StoredFile[] {
     const allFiles = Array.from(this.files.values()).sort(
-      (a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime()
+      (a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime(),
     );
 
     const start = offset || 0;
@@ -119,13 +119,13 @@ export class InMemoryStorageService implements IStorageService {
    */
   listDatasets(
     limit?: number,
-    offset?: number
+    offset?: number,
   ): {
     datasets: Dataset[];
     total: number;
   } {
     const allDatasets = Array.from(this.datasets.values()).sort(
-      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
     );
 
     const start = offset || 0;

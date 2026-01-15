@@ -45,9 +45,12 @@ export function getDefaultAuthConfig(): AuthConfig {
   };
 }
 
-// For backwards compatibility - but prefer using getDefaultAuthConfig()
+/**
+ * Default auth config - reads API key at module load time for backward compatibility.
+ * For runtime reading of env vars, use getDefaultAuthConfig() instead.
+ */
 export const DEFAULT_AUTH_CONFIG: AuthConfig = {
-  defaultApiKey: undefined, // Will be set at runtime via getDefaultAuthConfig()
+  defaultApiKey: process.env.LIGHTHOUSE_API_KEY,
   enablePerRequestAuth: true,
   requireAuthentication: true,
   keyValidationCache: {
@@ -131,7 +134,10 @@ export function getDefaultServerConfig(): ServerConfig {
   };
 }
 
-// For backwards compatibility - prefer using getDefaultServerConfig()
+/**
+ * Default server config - reads API key at module load time for backward compatibility.
+ * For runtime reading of env vars, use getDefaultServerConfig() instead.
+ */
 export const DEFAULT_SERVER_CONFIG: ServerConfig = {
   name: "lighthouse-storage",
   version: "0.1.0",
@@ -139,7 +145,7 @@ export const DEFAULT_SERVER_CONFIG: ServerConfig = {
   maxStorageSize: 1024 * 1024 * 1024, // 1GB
   enableMetrics: true,
   metricsInterval: 60000, // 1 minute
-  lighthouseApiKey: undefined, // Will be set at runtime
+  lighthouseApiKey: process.env.LIGHTHOUSE_API_KEY,
   authentication: DEFAULT_AUTH_CONFIG,
   performance: DEFAULT_PERFORMANCE_CONFIG,
   multiTenancy: DEFAULT_MULTI_TENANCY_CONFIG,

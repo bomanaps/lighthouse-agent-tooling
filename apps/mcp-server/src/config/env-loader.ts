@@ -86,7 +86,9 @@ export class EnvLoader {
       if (validLevels.includes(env.LOG_LEVEL)) {
         config.logLevel = env.LOG_LEVEL as any;
       } else {
-        process.stderr.write(`Warning: Invalid LOG_LEVEL: ${env.LOG_LEVEL}. Using default 'info'.\n`);
+        process.stderr.write(
+          `Warning: Invalid LOG_LEVEL: ${env.LOG_LEVEL}. Using default 'info'.\n`,
+        );
       }
     }
 
@@ -96,7 +98,9 @@ export class EnvLoader {
       if (!isNaN(size) && size > 0) {
         config.maxStorageSize = size;
       } else {
-        process.stderr.write(`Warning: Invalid MAX_STORAGE_SIZE: ${env.MAX_STORAGE_SIZE}. Using default.\n`);
+        process.stderr.write(
+          `Warning: Invalid MAX_STORAGE_SIZE: ${env.MAX_STORAGE_SIZE}. Using default.\n`,
+        );
       }
     }
 
@@ -110,7 +114,9 @@ export class EnvLoader {
       if (!isNaN(interval) && interval > 0) {
         config.metricsInterval = interval;
       } else {
-        process.stderr.write(`Warning: Invalid METRICS_INTERVAL: ${env.METRICS_INTERVAL}. Using default.\n`);
+        process.stderr.write(
+          `Warning: Invalid METRICS_INTERVAL: ${env.METRICS_INTERVAL}. Using default.\n`,
+        );
       }
     }
 

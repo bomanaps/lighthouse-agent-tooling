@@ -6,10 +6,7 @@ import { LighthouseAISDK, EnhancedAccessCondition } from "@lighthouse-tooling/sd
 import { UploadResult, DownloadResult, AccessCondition, Dataset } from "@lighthouse-tooling/types";
 import { Logger } from "@lighthouse-tooling/shared";
 import { ILighthouseService, StoredFile } from "./ILighthouseService.js";
-import {
-  IStorageService,
-  InMemoryStorageService,
-} from "../storage/InMemoryStorageService.js";
+import { IStorageService, InMemoryStorageService } from "../storage/InMemoryStorageService.js";
 import { createStorageService } from "../storage/StorageFactory.js";
 
 export class LighthouseService implements ILighthouseService {
@@ -53,6 +50,10 @@ export class LighthouseService implements ILighthouseService {
       if (!this.storageInitialized) {
         try {
           const newStorage = await createStorageService(this.dbPath);
+
+          // Migrate any data from in-memory storage to new storage
+          this.migrateStorage(this.storage, newStorage);
+
           // Close old in-memory storage
           this.storage.close();
           this.storage = newStorage;
@@ -70,6 +71,37 @@ export class LighthouseService implements ILighthouseService {
     } catch (error) {
       this.logger.error("Failed to initialize Lighthouse SDK", error as Error);
       throw error;
+    }
+  }
+
+  /**
+   * Migrate data from old storage to new storage
+   * This ensures no data is lost when upgrading from in-memory to SQLite
+   */
+  private migrateStorage(oldStorage: IStorageService, newStorage: IStorageService): void {
+    try {
+      // Migrate files
+      const files = oldStorage.listFiles();
+      for (const file of files) {
+        newStorage.saveFile(file);
+      }
+
+      // Migrate datasets
+      const { datasets } = oldStorage.listDatasets();
+      for (const dataset of datasets) {
+        newStorage.saveDataset(dataset);
+      }
+
+      if (files.length > 0 || datasets.length > 0) {
+        this.logger.info("Migrated data from in-memory to persistent storage", {
+          fileCount: files.length,
+          datasetCount: datasets.length,
+        });
+      }
+    } catch (error) {
+      this.logger.warn("Failed to migrate some data during storage upgrade", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
