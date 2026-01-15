@@ -86,7 +86,9 @@ export class EnvLoader {
       if (validLevels.includes(env.LOG_LEVEL)) {
         config.logLevel = env.LOG_LEVEL as any;
       } else {
-        console.warn(`Invalid LOG_LEVEL: ${env.LOG_LEVEL}. Using default 'info'.`);
+        process.stderr.write(
+          `Warning: Invalid LOG_LEVEL: ${env.LOG_LEVEL}. Using default 'info'.\n`,
+        );
       }
     }
 
@@ -96,7 +98,9 @@ export class EnvLoader {
       if (!isNaN(size) && size > 0) {
         config.maxStorageSize = size;
       } else {
-        console.warn(`Invalid MAX_STORAGE_SIZE: ${env.MAX_STORAGE_SIZE}. Using default.`);
+        process.stderr.write(
+          `Warning: Invalid MAX_STORAGE_SIZE: ${env.MAX_STORAGE_SIZE}. Using default.\n`,
+        );
       }
     }
 
@@ -110,7 +114,9 @@ export class EnvLoader {
       if (!isNaN(interval) && interval > 0) {
         config.metricsInterval = interval;
       } else {
-        console.warn(`Invalid METRICS_INTERVAL: ${env.METRICS_INTERVAL}. Using default.`);
+        process.stderr.write(
+          `Warning: Invalid METRICS_INTERVAL: ${env.METRICS_INTERVAL}. Using default.\n`,
+        );
       }
     }
 
@@ -167,24 +173,19 @@ export class EnvLoader {
 
   /**
    * Display current configuration (for debugging)
+   * Uses stderr to avoid corrupting MCP stdio protocol on stdout
    */
   static displayConfig(config: Partial<ServerConfig>): void {
-    console.log("\n📋 Server Configuration:");
-    console.log("  Name:", config.name || "default");
-    console.log("  Version:", config.version || "default");
-    console.log("  Log Level:", config.logLevel || "default");
-    console.log(
-      "  Max Storage:",
-      config.maxStorageSize ? `${(config.maxStorageSize / 1024 / 1024).toFixed(2)} MB` : "default",
-    );
-    console.log(
-      "  Metrics:",
-      config.enableMetrics !== undefined ? config.enableMetrics : "default",
-    );
-    console.log(
-      "  Metrics Interval:",
-      config.metricsInterval ? `${config.metricsInterval / 1000}s` : "default",
-    );
-    console.log("");
+    const lines = [
+      "\nServer Configuration:",
+      `  Name: ${config.name || "default"}`,
+      `  Version: ${config.version || "default"}`,
+      `  Log Level: ${config.logLevel || "default"}`,
+      `  Max Storage: ${config.maxStorageSize ? `${(config.maxStorageSize / 1024 / 1024).toFixed(2)} MB` : "default"}`,
+      `  Metrics: ${config.enableMetrics !== undefined ? config.enableMetrics : "default"}`,
+      `  Metrics Interval: ${config.metricsInterval ? `${config.metricsInterval / 1000}s` : "default"}`,
+      "",
+    ];
+    process.stderr.write(lines.join("\n") + "\n");
   }
 }

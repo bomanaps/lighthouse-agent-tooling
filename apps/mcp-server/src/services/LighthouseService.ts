@@ -6,21 +6,25 @@ import { LighthouseAISDK, EnhancedAccessCondition } from "@lighthouse-tooling/sd
 import { UploadResult, DownloadResult, AccessCondition, Dataset } from "@lighthouse-tooling/types";
 import { Logger } from "@lighthouse-tooling/shared";
 import { ILighthouseService, StoredFile } from "./ILighthouseService.js";
-import { DatabaseService } from "../storage/DatabaseService.js";
+import { IStorageService, InMemoryStorageService } from "../storage/InMemoryStorageService.js";
+import { createStorageService } from "../storage/StorageFactory.js";
 
 export class LighthouseService implements ILighthouseService {
   private sdk: LighthouseAISDK;
   private logger: Logger;
-  private database: DatabaseService;
+  private storage: IStorageService;
+  private dbPath?: string;
+  private storageInitialized: boolean = false;
   // Keep in-memory cache for performance (LRU cache can be added later)
   private fileCache: Map<string, StoredFile> = new Map();
   private datasetCache: Map<string, Dataset> = new Map();
 
   constructor(apiKey: string, logger?: Logger, dbPath?: string) {
     this.logger = logger || Logger.getInstance({ level: "info", component: "LighthouseService" });
+    this.dbPath = dbPath;
 
-    // Initialize database service
-    this.database = new DatabaseService({ dbPath });
+    // Start with in-memory storage; will try to upgrade to SQLite in initialize()
+    this.storage = new InMemoryStorageService();
 
     this.sdk = new LighthouseAISDK({
       apiKey,
@@ -42,11 +46,62 @@ export class LighthouseService implements ILighthouseService {
    */
   async initialize(): Promise<void> {
     try {
+      // Try to upgrade to SQLite storage if not already initialized
+      if (!this.storageInitialized) {
+        try {
+          const newStorage = await createStorageService(this.dbPath);
+
+          // Migrate any data from in-memory storage to new storage
+          this.migrateStorage(this.storage, newStorage);
+
+          // Close old in-memory storage
+          this.storage.close();
+          this.storage = newStorage;
+          this.storageInitialized = true;
+        } catch (storageError) {
+          this.logger.warn("Could not initialize SQLite storage, continuing with in-memory", {
+            error: storageError instanceof Error ? storageError.message : String(storageError),
+          });
+          this.storageInitialized = true; // Mark as initialized even if using in-memory
+        }
+      }
+
       await this.sdk.initialize();
       this.logger.info("Lighthouse SDK initialized successfully");
     } catch (error) {
       this.logger.error("Failed to initialize Lighthouse SDK", error as Error);
       throw error;
+    }
+  }
+
+  /**
+   * Migrate data from old storage to new storage
+   * This ensures no data is lost when upgrading from in-memory to SQLite
+   */
+  private migrateStorage(oldStorage: IStorageService, newStorage: IStorageService): void {
+    try {
+      // Migrate files
+      const files = oldStorage.listFiles();
+      for (const file of files) {
+        newStorage.saveFile(file);
+      }
+
+      // Migrate datasets
+      const { datasets } = oldStorage.listDatasets();
+      for (const dataset of datasets) {
+        newStorage.saveDataset(dataset);
+      }
+
+      if (files.length > 0 || datasets.length > 0) {
+        this.logger.info("Migrated data from in-memory to persistent storage", {
+          fileCount: files.length,
+          datasetCount: datasets.length,
+        });
+      }
+    } catch (error) {
+      this.logger.warn("Failed to migrate some data during storage upgrade", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -138,8 +193,8 @@ export class LighthouseService implements ILighthouseService {
         hash: fileInfo.hash,
       };
 
-      // Persist to database
-      this.database.saveFile(storedFile);
+      // Persist to storage
+      this.storage.saveFile(storedFile);
       // Update cache
       this.fileCache.set(fileInfo.hash, storedFile);
 
@@ -224,7 +279,7 @@ export class LighthouseService implements ILighthouseService {
       await this.sdk.getFileInfo(cid);
 
       // Update database and cache
-      this.database.updateFilePinned(cid, true);
+      this.storage.updateFilePinned(cid, true);
       const cachedFile = this.fileCache.get(cid);
       if (cachedFile) {
         cachedFile.pinned = true;
@@ -251,7 +306,7 @@ export class LighthouseService implements ILighthouseService {
       this.logger.info("Unpinning file", { cid });
 
       // Update database and cache
-      this.database.updateFilePinned(cid, false);
+      this.storage.updateFilePinned(cid, false);
       const cachedFile = this.fileCache.get(cid);
       if (cachedFile) {
         cachedFile.pinned = false;
@@ -282,7 +337,7 @@ export class LighthouseService implements ILighthouseService {
       }
 
       // Try database
-      const dbFile = this.database.getFile(cid);
+      const dbFile = this.storage.getFile(cid);
       if (dbFile) {
         this.fileCache.set(cid, dbFile);
         return dbFile;
@@ -302,7 +357,7 @@ export class LighthouseService implements ILighthouseService {
       };
 
       // Persist to database and cache
-      this.database.saveFile(storedFile);
+      this.storage.saveFile(storedFile);
       this.fileCache.set(cid, storedFile);
 
       return storedFile;
@@ -318,7 +373,7 @@ export class LighthouseService implements ILighthouseService {
   async listFiles(): Promise<StoredFile[]> {
     try {
       // Try to get from database first (faster)
-      const dbFiles = this.database.listFiles();
+      const dbFiles = this.storage.listFiles();
       if (dbFiles.length > 0) {
         // Update cache
         dbFiles.forEach((file) => {
@@ -342,7 +397,7 @@ export class LighthouseService implements ILighthouseService {
         };
 
         // Persist to database and update cache
-        this.database.saveFile(storedFile);
+        this.storage.saveFile(storedFile);
         this.fileCache.set(fileInfo.hash, storedFile);
 
         return storedFile;
@@ -365,8 +420,8 @@ export class LighthouseService implements ILighthouseService {
     utilization: number;
   } {
     // Get stats from database (more accurate)
-    const fileCount = this.database.getFileCount();
-    const totalSize = this.database.getTotalSize();
+    const fileCount = this.storage.getFileCount();
+    const totalSize = this.storage.getTotalSize();
 
     return {
       fileCount,
@@ -524,7 +579,7 @@ export class LighthouseService implements ILighthouseService {
   clear(): void {
     this.fileCache.clear();
     this.datasetCache.clear();
-    this.database.clear();
+    this.storage.clear();
     this.logger.info("Cache and database cleared");
   }
 
@@ -585,7 +640,7 @@ export class LighthouseService implements ILighthouseService {
       };
 
       // Persist to database and cache
-      this.database.saveDataset(dataset);
+      this.storage.saveDataset(dataset);
       this.datasetCache.set(dataset.id, dataset);
 
       this.logger.info("Dataset created successfully", {
@@ -652,7 +707,7 @@ export class LighthouseService implements ILighthouseService {
       };
 
       // Persist to database and update cache
-      this.database.saveDataset(dataset);
+      this.storage.saveDataset(dataset);
       this.datasetCache.set(dataset.id, dataset);
 
       this.logger.info("Dataset updated successfully", {
@@ -680,7 +735,7 @@ export class LighthouseService implements ILighthouseService {
       }
 
       // Try database
-      const dbDataset = this.database.getDataset(datasetId);
+      const dbDataset = this.storage.getDataset(datasetId);
       if (dbDataset) {
         this.datasetCache.set(datasetId, dbDataset);
         return dbDataset;
@@ -716,7 +771,7 @@ export class LighthouseService implements ILighthouseService {
       };
 
       // Persist to database and cache
-      this.database.saveDataset(dataset);
+      this.storage.saveDataset(dataset);
       this.datasetCache.set(dataset.id, dataset);
 
       return dataset;
@@ -739,7 +794,7 @@ export class LighthouseService implements ILighthouseService {
       const offset = params?.offset || 0;
 
       // Try to get from database first (faster and more accurate)
-      const dbResult = this.database.listDatasets(limit, offset);
+      const dbResult = this.storage.listDatasets(limit, offset);
       if (dbResult.total > 0) {
         // Update cache
         dbResult.datasets.forEach((dataset) => {
@@ -782,7 +837,7 @@ export class LighthouseService implements ILighthouseService {
         };
 
         // Persist to database and cache
-        this.database.saveDataset(dataset);
+        this.storage.saveDataset(dataset);
         this.datasetCache.set(dataset.id, dataset);
 
         return dataset;
@@ -814,7 +869,7 @@ export class LighthouseService implements ILighthouseService {
       await this.sdk.deleteDataset(datasetId, deleteFiles);
 
       // Remove from database and cache
-      this.database.deleteDataset(datasetId, deleteFiles);
+      this.storage.deleteDataset(datasetId, deleteFiles);
       this.datasetCache.delete(datasetId);
 
       this.logger.info("Dataset deleted successfully", { datasetId });
@@ -831,7 +886,7 @@ export class LighthouseService implements ILighthouseService {
     this.sdk.destroy();
     this.fileCache.clear();
     this.datasetCache.clear();
-    this.database.close();
+    this.storage.close();
     this.logger.info("Lighthouse service destroyed");
   }
 }

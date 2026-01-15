@@ -21,6 +21,34 @@ export interface ServerConfig {
   multiTenancy?: MultiTenancyConfig;
 }
 
+/**
+ * Get default auth config with API key read at runtime (not module load time)
+ * This ensures environment variables set after module import are respected
+ */
+export function getDefaultAuthConfig(): AuthConfig {
+  return {
+    defaultApiKey: process.env.LIGHTHOUSE_API_KEY,
+    enablePerRequestAuth: true,
+    requireAuthentication: true,
+    keyValidationCache: {
+      enabled: true,
+      maxSize: 1000,
+      ttlSeconds: 300, // 5 minutes
+      cleanupIntervalSeconds: 60,
+    },
+    rateLimiting: {
+      enabled: true,
+      requestsPerMinute: 60,
+      burstLimit: 10,
+      keyBasedLimiting: true,
+    },
+  };
+}
+
+/**
+ * Default auth config - reads API key at module load time for backward compatibility.
+ * For runtime reading of env vars, use getDefaultAuthConfig() instead.
+ */
 export const DEFAULT_AUTH_CONFIG: AuthConfig = {
   defaultApiKey: process.env.LIGHTHOUSE_API_KEY,
   enablePerRequestAuth: true,
@@ -88,6 +116,28 @@ export const DEFAULT_MULTI_TENANCY_CONFIG: MultiTenancyConfig = {
   auditLogRetentionDays: 90,
 };
 
+/**
+ * Get default server config with API key read at runtime
+ */
+export function getDefaultServerConfig(): ServerConfig {
+  return {
+    name: "lighthouse-storage",
+    version: "0.1.0",
+    logLevel: "info",
+    maxStorageSize: 1024 * 1024 * 1024, // 1GB
+    enableMetrics: true,
+    metricsInterval: 60000, // 1 minute
+    lighthouseApiKey: process.env.LIGHTHOUSE_API_KEY,
+    authentication: getDefaultAuthConfig(),
+    performance: DEFAULT_PERFORMANCE_CONFIG,
+    multiTenancy: DEFAULT_MULTI_TENANCY_CONFIG,
+  };
+}
+
+/**
+ * Default server config - reads API key at module load time for backward compatibility.
+ * For runtime reading of env vars, use getDefaultServerConfig() instead.
+ */
 export const DEFAULT_SERVER_CONFIG: ServerConfig = {
   name: "lighthouse-storage",
   version: "0.1.0",
