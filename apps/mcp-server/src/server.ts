@@ -25,7 +25,7 @@ import {
   LighthouseGenerateKeyTool,
   LighthouseSetupAccessControlTool,
 } from "./tools/index.js";
-import { ServerConfig, DEFAULT_SERVER_CONFIG } from "./config/server-config.js";
+import { ServerConfig, getDefaultServerConfig } from "./config/server-config.js";
 import { AuthManager } from "./auth/AuthManager.js";
 import { LighthouseServiceFactory } from "./auth/LighthouseServiceFactory.js";
 import { RequestContext } from "./auth/RequestContext.js";
@@ -50,7 +50,8 @@ export class LighthouseMCPServer {
       datasetService?: MockDatasetService;
     },
   ) {
-    this.config = { ...DEFAULT_SERVER_CONFIG, ...config };
+    // Use runtime config getter to ensure env vars are read at construction time
+    this.config = { ...getDefaultServerConfig(), ...config };
 
     // Initialize logger
     this.logger = Logger.getInstance({

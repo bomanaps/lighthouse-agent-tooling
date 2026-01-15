@@ -118,12 +118,13 @@ Examples:
 
     // Handle graceful shutdown
     const shutdown = async () => {
-      console.log("\nShutting down server...");
+      // Use stderr to avoid corrupting MCP stdio protocol on stdout
+      process.stderr.write("\nShutting down server...\n");
       try {
         await server.stop();
         process.exit(0);
       } catch (error) {
-        console.error("Error during shutdown:", error);
+        process.stderr.write(`Error during shutdown: ${error}\n`);
         process.exit(1);
       }
     };
@@ -131,7 +132,8 @@ Examples:
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
   } catch (error) {
-    console.error("Fatal error:", error);
+    // Use stderr to avoid corrupting MCP stdio protocol on stdout
+    process.stderr.write(`Fatal error: ${error}\n`);
     process.exit(1);
   }
 }
@@ -139,7 +141,8 @@ Examples:
 // Run main function if this is the entry point
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error) => {
-    console.error("Failed to start server:", error);
+    // Use stderr to avoid corrupting MCP stdio protocol on stdout
+    process.stderr.write(`Failed to start server: ${error}\n`);
     process.exit(1);
   });
 }

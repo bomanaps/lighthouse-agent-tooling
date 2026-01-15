@@ -21,8 +21,33 @@ export interface ServerConfig {
   multiTenancy?: MultiTenancyConfig;
 }
 
+/**
+ * Get default auth config with API key read at runtime (not module load time)
+ * This ensures environment variables set after module import are respected
+ */
+export function getDefaultAuthConfig(): AuthConfig {
+  return {
+    defaultApiKey: process.env.LIGHTHOUSE_API_KEY,
+    enablePerRequestAuth: true,
+    requireAuthentication: true,
+    keyValidationCache: {
+      enabled: true,
+      maxSize: 1000,
+      ttlSeconds: 300, // 5 minutes
+      cleanupIntervalSeconds: 60,
+    },
+    rateLimiting: {
+      enabled: true,
+      requestsPerMinute: 60,
+      burstLimit: 10,
+      keyBasedLimiting: true,
+    },
+  };
+}
+
+// For backwards compatibility - but prefer using getDefaultAuthConfig()
 export const DEFAULT_AUTH_CONFIG: AuthConfig = {
-  defaultApiKey: process.env.LIGHTHOUSE_API_KEY,
+  defaultApiKey: undefined, // Will be set at runtime via getDefaultAuthConfig()
   enablePerRequestAuth: true,
   requireAuthentication: true,
   keyValidationCache: {
@@ -88,6 +113,25 @@ export const DEFAULT_MULTI_TENANCY_CONFIG: MultiTenancyConfig = {
   auditLogRetentionDays: 90,
 };
 
+/**
+ * Get default server config with API key read at runtime
+ */
+export function getDefaultServerConfig(): ServerConfig {
+  return {
+    name: "lighthouse-storage",
+    version: "0.1.0",
+    logLevel: "info",
+    maxStorageSize: 1024 * 1024 * 1024, // 1GB
+    enableMetrics: true,
+    metricsInterval: 60000, // 1 minute
+    lighthouseApiKey: process.env.LIGHTHOUSE_API_KEY,
+    authentication: getDefaultAuthConfig(),
+    performance: DEFAULT_PERFORMANCE_CONFIG,
+    multiTenancy: DEFAULT_MULTI_TENANCY_CONFIG,
+  };
+}
+
+// For backwards compatibility - prefer using getDefaultServerConfig()
 export const DEFAULT_SERVER_CONFIG: ServerConfig = {
   name: "lighthouse-storage",
   version: "0.1.0",
@@ -95,7 +139,7 @@ export const DEFAULT_SERVER_CONFIG: ServerConfig = {
   maxStorageSize: 1024 * 1024 * 1024, // 1GB
   enableMetrics: true,
   metricsInterval: 60000, // 1 minute
-  lighthouseApiKey: process.env.LIGHTHOUSE_API_KEY,
+  lighthouseApiKey: undefined, // Will be set at runtime
   authentication: DEFAULT_AUTH_CONFIG,
   performance: DEFAULT_PERFORMANCE_CONFIG,
   multiTenancy: DEFAULT_MULTI_TENANCY_CONFIG,

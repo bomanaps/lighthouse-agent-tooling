@@ -187,6 +187,8 @@ export class Logger {
 
   /**
    * Log to console with appropriate formatting
+   * IMPORTANT: All output goes to stderr to avoid corrupting stdout
+   * (required for MCP stdio transport which uses stdout for JSON-RPC)
    */
   private logToConsole(entry: LogEntry): void {
     const { timestamp, level, message, component, context, error } = entry;
@@ -197,23 +199,10 @@ export class Logger {
 
     const logMessage = `${prefix} ${message}${contextStr}`;
 
-    switch (level) {
-      case "debug":
-        console.debug(logMessage);
-        break;
-      case "info":
-        console.info(logMessage);
-        break;
-      case "warn":
-        console.warn(logMessage);
-        break;
-      case "error":
-      case "fatal":
-        console.error(logMessage);
-        if (error) {
-          console.error(error.stack || error.message);
-        }
-        break;
+    // All logs go to stderr to preserve stdout for MCP protocol
+    process.stderr.write(logMessage + "\n");
+    if (error) {
+      process.stderr.write((error.stack || error.message) + "\n");
     }
   }
 
