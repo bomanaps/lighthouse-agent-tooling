@@ -148,3 +148,8 @@ vite.config.ts.timestamp-*
 *.db-shm
 *.db-wal
 data/
+
+# pnpm lock files in subdirectories (keep only root)
+apps/**/pnpm-lock.yaml
+packages/**/pnpm-lock.yaml
+tools/**/pnpm-lock.yaml

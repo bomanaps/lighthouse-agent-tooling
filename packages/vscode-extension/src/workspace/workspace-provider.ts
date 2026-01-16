@@ -5,12 +5,16 @@
 
 import * as vscode from "vscode";
 import * as path from "path";
+import type { LighthouseAISDK } from "@lighthouse-tooling/sdk-wrapper";
 import type {
   WorkspaceContextProvider,
   WorkspaceChangeCallback,
   WorkspaceWatcher,
   WorkspaceContext,
 } from "../types/mock-types";
+
+/** Default page size for listing datasets/files */
+const DEFAULT_PAGE_SIZE = 100;
 
 /**
  * VSCode workspace watcher implementation
@@ -29,6 +33,14 @@ class VSCodeWorkspaceWatcher implements WorkspaceWatcher {
  */
 export class VSCodeWorkspaceProvider implements WorkspaceContextProvider {
   private watchers: VSCodeWorkspaceWatcher[] = [];
+  private sdk: LighthouseAISDK | null = null;
+
+  /**
+   * Set the SDK instance for Lighthouse operations
+   */
+  setSDK(sdk: LighthouseAISDK): void {
+    this.sdk = sdk;
+  }
 
   /**
    * Get the current workspace context
@@ -123,21 +135,58 @@ export class VSCodeWorkspaceProvider implements WorkspaceContextProvider {
   }
 
   /**
-   * Get Lighthouse files (placeholder)
+   * Get Lighthouse files from SDK
    */
   async getLighthouseFiles(): Promise<any[]> {
-    // This would typically query the Lighthouse SDK for files
-    // For now, return empty array as placeholder
-    return [];
+    if (!this.sdk) {
+      console.warn("SDK not initialized, cannot fetch Lighthouse files");
+      return [];
+    }
+
+    try {
+      const response = await this.sdk.listFiles(DEFAULT_PAGE_SIZE, 0);
+      return response.files.map((file) => ({
+        hash: file.hash,
+        name: file.name,
+        size: file.size,
+        mimeType: file.mimeType,
+        uploadedAt: file.uploadedAt,
+        encrypted: file.encrypted,
+        metadata: file.metadata,
+      }));
+    } catch (error) {
+      console.error("Error fetching Lighthouse files:", error);
+      return [];
+    }
   }
 
   /**
-   * Get active datasets (placeholder)
+   * Get active datasets from SDK
    */
   async getActiveDatasets(): Promise<any[]> {
-    // This would typically query the Lighthouse SDK for datasets
-    // For now, return empty array as placeholder
-    return [];
+    if (!this.sdk) {
+      console.warn("SDK not initialized, cannot fetch datasets");
+      return [];
+    }
+
+    try {
+      const response = await this.sdk.listDatasets(DEFAULT_PAGE_SIZE, 0);
+      return response.datasets.map((dataset) => ({
+        id: dataset.id,
+        name: dataset.name,
+        description: dataset.description,
+        fileCount: dataset.fileCount,
+        totalSize: dataset.totalSize,
+        version: dataset.version,
+        encrypted: dataset.encrypted,
+        tags: dataset.tags,
+        createdAt: dataset.createdAt,
+        updatedAt: dataset.updatedAt,
+      }));
+    } catch (error) {
+      console.error("Error fetching datasets:", error);
+      return [];
+    }
   }
 
   /**

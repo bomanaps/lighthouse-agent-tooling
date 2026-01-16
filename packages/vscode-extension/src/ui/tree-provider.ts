@@ -6,6 +6,10 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import type { LighthouseAISDK } from "@lighthouse-tooling/sdk-wrapper";
+import { FileUtils } from "@lighthouse-tooling/shared";
+
+/** Default page size for listing datasets/files */
+const DEFAULT_PAGE_SIZE = 100;
 
 /**
  * Tree item types
@@ -39,9 +43,17 @@ class LighthouseTreeItem extends vscode.TreeItem {
   private getTooltip(): string {
     switch (this.type) {
       case TreeItemType.File:
-        return `File: ${this.data?.name || this.label}\nHash: ${this.data?.hash || "Unknown"}\nSize: ${this.data?.size || "Unknown"}`;
+        return `File: ${this.data?.name || this.label}\nHash: ${this.data?.hash || "Unknown"}\nSize: ${this.data?.size || "Unknown"}\nUploaded: ${this.data?.uploadedAt ? new Date(this.data.uploadedAt).toLocaleString() : "Unknown"}`;
       case TreeItemType.Dataset:
-        return `Dataset: ${this.data?.name || this.label}\nFiles: ${this.data?.fileCount || 0}\nCreated: ${this.data?.createdAt || "Unknown"}`;
+        const sizeStr = this.data?.totalSize
+          ? FileUtils.formatBytes(this.data.totalSize)
+          : "Unknown";
+        const tagsStr = this.data?.tags?.length > 0 ? `\nTags: ${this.data.tags.join(", ")}` : "";
+        const encryptedStr =
+          this.data?.encrypted !== undefined
+            ? `\nEncrypted: ${this.data.encrypted ? "Yes" : "No"}`
+            : "";
+        return `Dataset: ${this.data?.name || this.label}\nFiles: ${this.data?.fileCount || 0}\nSize: ${sizeStr}\nVersion: ${this.data?.version || "1.0.0"}${encryptedStr}${tagsStr}\nCreated: ${this.data?.createdAt ? new Date(this.data.createdAt).toLocaleString() : "Unknown"}`;
       default:
         return this.label;
     }
@@ -218,27 +230,21 @@ export class VSCodeTreeProvider implements vscode.TreeDataProvider<LighthouseTre
    */
   private async loadDatasets(): Promise<any[]> {
     try {
-      // For now, return mock datasets since SDK doesn't have dataset methods yet
-      return [
-        {
-          id: "dataset-1",
-          name: "AI Training Data",
-          description: "Dataset for machine learning training",
-          files: [],
-          fileCount: 0,
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "dataset-2",
-          name: "Document Collection",
-          description: "Collection of documents for analysis",
-          files: [],
-          fileCount: 0,
-          createdAt: new Date().toISOString(),
-        },
-      ];
-
-      // TODO: Implement actual dataset listing when SDK supports it
+      // Use SDK to list datasets with pagination
+      const response = await this.sdk.listDatasets(DEFAULT_PAGE_SIZE, 0);
+      return response.datasets.map((dataset) => ({
+        id: dataset.id,
+        name: dataset.name,
+        description: dataset.description || "No description",
+        files: dataset.files,
+        fileCount: dataset.fileCount,
+        totalSize: dataset.totalSize,
+        version: dataset.version,
+        encrypted: dataset.encrypted,
+        tags: dataset.tags,
+        createdAt: dataset.createdAt,
+        updatedAt: dataset.updatedAt,
+      }));
     } catch (error) {
       console.error("Error loading datasets:", error);
       return [];
