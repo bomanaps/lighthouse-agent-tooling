@@ -13,6 +13,9 @@ import type {
   WorkspaceContext,
 } from "../types/mock-types";
 
+/** Default page size for listing datasets/files */
+const DEFAULT_PAGE_SIZE = 100;
+
 /**
  * VSCode workspace watcher implementation
  */
@@ -141,7 +144,7 @@ export class VSCodeWorkspaceProvider implements WorkspaceContextProvider {
     }
 
     try {
-      const response = await this.sdk.listFiles(100, 0); // Get up to 100 files
+      const response = await this.sdk.listFiles(DEFAULT_PAGE_SIZE, 0);
       return response.files.map((file) => ({
         hash: file.hash,
         name: file.name,
@@ -167,7 +170,7 @@ export class VSCodeWorkspaceProvider implements WorkspaceContextProvider {
     }
 
     try {
-      const response = await this.sdk.listDatasets(100, 0); // Get up to 100 datasets
+      const response = await this.sdk.listDatasets(DEFAULT_PAGE_SIZE, 0);
       return response.datasets.map((dataset) => ({
         id: dataset.id,
         name: dataset.name,

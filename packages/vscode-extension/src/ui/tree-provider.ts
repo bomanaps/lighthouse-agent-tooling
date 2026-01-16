@@ -6,6 +6,10 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import type { LighthouseAISDK } from "@lighthouse-tooling/sdk-wrapper";
+import { FileUtils } from "@lighthouse-tooling/shared";
+
+/** Default page size for listing datasets/files */
+const DEFAULT_PAGE_SIZE = 100;
 
 /**
  * Tree item types
@@ -41,7 +45,9 @@ class LighthouseTreeItem extends vscode.TreeItem {
       case TreeItemType.File:
         return `File: ${this.data?.name || this.label}\nHash: ${this.data?.hash || "Unknown"}\nSize: ${this.data?.size || "Unknown"}\nUploaded: ${this.data?.uploadedAt ? new Date(this.data.uploadedAt).toLocaleString() : "Unknown"}`;
       case TreeItemType.Dataset:
-        const sizeStr = this.data?.totalSize ? this.formatBytes(this.data.totalSize) : "Unknown";
+        const sizeStr = this.data?.totalSize
+          ? FileUtils.formatBytes(this.data.totalSize)
+          : "Unknown";
         const tagsStr = this.data?.tags?.length > 0 ? `\nTags: ${this.data.tags.join(", ")}` : "";
         const encryptedStr =
           this.data?.encrypted !== undefined
@@ -51,14 +57,6 @@ class LighthouseTreeItem extends vscode.TreeItem {
       default:
         return this.label;
     }
-  }
-
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
   private getIcon(): vscode.ThemeIcon {
@@ -233,7 +231,7 @@ export class VSCodeTreeProvider implements vscode.TreeDataProvider<LighthouseTre
   private async loadDatasets(): Promise<any[]> {
     try {
       // Use SDK to list datasets with pagination
-      const response = await this.sdk.listDatasets(100, 0); // Get up to 100 datasets
+      const response = await this.sdk.listDatasets(DEFAULT_PAGE_SIZE, 0);
       return response.datasets.map((dataset) => ({
         id: dataset.id,
         name: dataset.name,

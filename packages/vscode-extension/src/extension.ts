@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import { createExtensionCore, type ExtensionCore } from "@lighthouse-tooling/extension-core";
 import { LighthouseAISDK } from "@lighthouse-tooling/sdk-wrapper";
+import { FileUtils } from "@lighthouse-tooling/shared";
 import { VSCodeCommandRegistry } from "./commands/command-registry";
 import { VSCodeProgressStreamer } from "./ui/progress-streamer";
 import { VSCodeWorkspaceProvider } from "./workspace/workspace-provider";
@@ -13,6 +14,9 @@ import { VSCodeStatusBar } from "./ui/status-bar";
 import { VSCodeTreeProvider } from "./ui/tree-provider";
 import { AIAgentHooksImpl, type AIAgentHooks } from "./ai/ai-agent-hooks";
 import { MCPClient } from "./mcp/mcp-client";
+
+/** Default page size for listing datasets/files */
+const DEFAULT_PAGE_SIZE = 100;
 
 /**
  * Main VSCode extension class
@@ -451,17 +455,18 @@ Try again with a smaller file or check your network connection.`;
         `Creating dataset: ${name}`,
       );
 
-      try {
-        // Listen for progress events
-        this.sdk.on("upload:progress", (event) => {
-          progress.update({
-            progress: event.data.percentage || 0,
-            message: `Uploading files... ${event.data.percentage || 0}%`,
-          });
+      // Create progress listener and track it for cleanup
+      const progressListener = (event: { data: { percentage?: number } }) => {
+        progress.update({
+          progress: event.data.percentage || 0,
+          message: `Uploading files... ${event.data.percentage || 0}%`,
         });
+      };
+      this.sdk.on("upload:progress", progressListener);
 
-        const filePaths = fileUris ? fileUris.map((uri) => uri.fsPath) : [];
+      const filePaths = fileUris ? fileUris.map((uri) => uri.fsPath) : [];
 
+      try {
         // Use SDK to create the dataset with files
         const result = await this.sdk.createDataset(filePaths, {
           name: name.trim(),
@@ -495,6 +500,9 @@ Try again with a smaller file or check your network connection.`;
         progress.fail(error as Error);
         this.statusBar.showError("Dataset creation failed");
         throw error;
+      } finally {
+        // Clean up the progress listener to prevent memory leaks
+        this.sdk.off("upload:progress", progressListener);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -742,21 +750,12 @@ Try again with a smaller file or check your network connection.`;
         progress.complete(datasetResult);
         this.statusBar.showSuccess("Dataset loaded");
 
-        // Format file size for display
-        const formatSize = (bytes: number): string => {
-          if (bytes === 0) return "0 Bytes";
-          const k = 1024;
-          const sizes = ["Bytes", "KB", "MB", "GB"];
-          const i = Math.floor(Math.log(bytes) / Math.log(k));
-          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-        };
-
         // Show dataset details in a quick pick or information message
         const detailItems = [
           `Name: ${datasetResult.name}`,
           `ID: ${datasetResult.id}`,
           `Files: ${datasetResult.fileCount}`,
-          `Size: ${formatSize(datasetResult.totalSize)}`,
+          `Size: ${FileUtils.formatBytes(datasetResult.totalSize)}`,
           `Version: ${datasetResult.version}`,
           `Encrypted: ${datasetResult.encrypted ? "Yes" : "No"}`,
           `Created: ${new Date(datasetResult.createdAt).toLocaleString()}`,
@@ -1084,7 +1083,7 @@ Try again with a smaller file or check your network connection.`;
       const progress = this.progressStreamer.startProgress(operationId, "Loading datasets...");
 
       try {
-        const response = await this.sdk.listDatasets(100, 0);
+        const response = await this.sdk.listDatasets(DEFAULT_PAGE_SIZE, 0);
 
         progress.complete(response);
 
@@ -1098,7 +1097,7 @@ Try again with a smaller file or check your network connection.`;
         // Format datasets for quick pick
         const datasetItems = response.datasets.map((dataset) => ({
           label: `$(database) ${dataset.name}`,
-          description: `${dataset.fileCount} files • ${this.formatBytes(dataset.totalSize)}`,
+          description: `${dataset.fileCount} files • ${FileUtils.formatBytes(dataset.totalSize)}`,
           detail: dataset.description || "No description",
           dataset,
         }));
@@ -1210,16 +1209,5 @@ Try again with a smaller file or check your network connection.`;
         `Failed to add files to dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
-  }
-
-  /**
-   * Format bytes to human-readable string
-   */
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 }
