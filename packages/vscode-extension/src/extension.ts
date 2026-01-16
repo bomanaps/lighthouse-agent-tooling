@@ -93,6 +93,9 @@ export class LighthouseVSCodeExtension {
       // Initialize SDK first (for VSCode extension commands)
       await this.sdk.initialize();
 
+      // Wire up SDK to workspace provider for Lighthouse file/dataset access
+      this.workspaceProvider.setSDK(this.sdk);
+
       // Set environment variable for ExtensionCore's AI command handler if API key is available
       if (apiKey && apiKey.trim() !== "") {
         process.env.LIGHTHOUSE_API_KEY = apiKey;
@@ -201,6 +204,18 @@ export class LighthouseVSCodeExtension {
       {
         id: "lighthouse.vscode.testConnection",
         handler: this.handleTestConnection.bind(this),
+      },
+      {
+        id: "lighthouse.vscode.listDatasets",
+        handler: this.handleListDatasets.bind(this),
+      },
+      {
+        id: "lighthouse.vscode.deleteDataset",
+        handler: this.handleDeleteDatasetCommand.bind(this),
+      },
+      {
+        id: "lighthouse.vscode.addFilesToDataset",
+        handler: this.handleAddFilesToDatasetCommand.bind(this),
       },
     ];
 
@@ -384,6 +399,52 @@ Try again with a smaller file or check your network connection.`;
         placeHolder: "Dataset for AI training...",
       });
 
+      // Ask user to select files for the dataset
+      const fileUris = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: true,
+        openLabel: "Add Files to Dataset",
+        title: "Select files to include in the dataset",
+      });
+
+      if (!fileUris || fileUris.length === 0) {
+        const continueWithoutFiles = await vscode.window.showWarningMessage(
+          "No files selected. Create an empty dataset?",
+          "Yes",
+          "No",
+        );
+        if (continueWithoutFiles !== "Yes") {
+          return;
+        }
+      }
+
+      // Ask for tags (optional)
+      const tagsInput = await vscode.window.showInputBox({
+        prompt: "Enter tags separated by commas (optional)",
+        placeHolder: "ml, training, v1",
+      });
+
+      const tags = tagsInput
+        ? tagsInput
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter((tag) => tag.length > 0)
+        : undefined;
+
+      // Ask if encryption is needed
+      const encryptChoice = await vscode.window.showQuickPick(
+        [
+          { label: "No Encryption", value: false },
+          { label: "Encrypt Dataset", value: true },
+        ],
+        {
+          placeHolder: "Do you want to encrypt the dataset?",
+        },
+      );
+
+      const encrypt = encryptChoice?.value ?? false;
+
       const operationId = `dataset-${Date.now()}`;
       const progress = this.progressStreamer.startProgress(
         operationId,
@@ -391,27 +452,43 @@ Try again with a smaller file or check your network connection.`;
       );
 
       try {
-        // For now, create a mock dataset since the SDK doesn't have dataset methods yet
-        const result = {
-          id: `dataset-${Date.now()}`,
-          name: name.trim(),
-          description: description?.trim() || "",
-          createdAt: new Date().toISOString(),
-          files: [],
-        };
+        // Listen for progress events
+        this.sdk.on("upload:progress", (event) => {
+          progress.update({
+            progress: event.data.percentage || 0,
+            message: `Uploading files... ${event.data.percentage || 0}%`,
+          });
+        });
 
-        // TODO: Implement actual dataset creation when SDK supports it
+        const filePaths = fileUris ? fileUris.map((uri) => uri.fsPath) : [];
+
+        // Use SDK to create the dataset with files
+        const result = await this.sdk.createDataset(filePaths, {
+          name: name.trim(),
+          description: description?.trim(),
+          encrypt,
+          tags,
+          metadata: {
+            createdFrom: "vscode-extension",
+            workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+          },
+        });
 
         progress.complete(result);
         this.statusBar.showSuccess(`Dataset created: ${name}`);
         await this.treeProvider.refresh();
 
         vscode.window
-          .showInformationMessage(`Dataset "${name}" created successfully!`, "View Dataset")
+          .showInformationMessage(
+            `Dataset "${name}" created successfully with ${result.fileCount} files!`,
+            "View Dataset",
+            "Copy ID",
+          )
           .then((selection) => {
             if (selection === "View Dataset") {
-              // Open dataset in tree view or external browser
               vscode.commands.executeCommand("lighthouse.vscode.refreshTree");
+            } else if (selection === "Copy ID") {
+              vscode.env.clipboard.writeText(result.id);
             }
           });
       } catch (error) {
@@ -420,9 +497,16 @@ Try again with a smaller file or check your network connection.`;
         throw error;
       }
     } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to create dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      let userMessage = `Failed to create dataset: ${errorMessage}`;
+
+      if (errorMessage.includes("timeout") || errorMessage.includes("ETIMEDOUT")) {
+        userMessage = `Dataset creation timed out. This may be due to large file sizes or network issues. Try with fewer or smaller files.`;
+      } else if (errorMessage.includes("API key")) {
+        userMessage = `Invalid API key. Please check your Lighthouse API key in settings.`;
+      }
+
+      vscode.window.showErrorMessage(userMessage);
     }
   }
 
@@ -652,34 +736,110 @@ Try again with a smaller file or check your network connection.`;
       );
 
       try {
-        // For now, return mock dataset data since SDK doesn't have dataset methods yet
-        const datasetResult = {
-          id: dataset.id,
-          name: dataset.name || dataset.id,
-          description: dataset.description || "No description",
-          files: [],
-          createdAt: dataset.createdAt || new Date().toISOString(),
-        };
+        // Use SDK to retrieve dataset information
+        const datasetResult = await this.sdk.getDataset(dataset.id);
 
-        // TODO: Implement actual dataset retrieval when SDK supports it
         progress.complete(datasetResult);
         this.statusBar.showSuccess("Dataset loaded");
 
-        // Show dataset information
-        vscode.window
-          .showInformationMessage(
-            `Dataset "${datasetResult.name}" loaded successfully!`,
-            "View Files",
-            "Copy ID",
-          )
-          .then((selection) => {
-            if (selection === "View Files") {
-              // Expand the dataset in tree view
-              vscode.commands.executeCommand("lighthouse.vscode.refreshTree");
-            } else if (selection === "Copy ID") {
-              vscode.env.clipboard.writeText(datasetResult.id);
-            }
-          });
+        // Format file size for display
+        const formatSize = (bytes: number): string => {
+          if (bytes === 0) return "0 Bytes";
+          const k = 1024;
+          const sizes = ["Bytes", "KB", "MB", "GB"];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+        };
+
+        // Show dataset details in a quick pick or information message
+        const detailItems = [
+          `Name: ${datasetResult.name}`,
+          `ID: ${datasetResult.id}`,
+          `Files: ${datasetResult.fileCount}`,
+          `Size: ${formatSize(datasetResult.totalSize)}`,
+          `Version: ${datasetResult.version}`,
+          `Encrypted: ${datasetResult.encrypted ? "Yes" : "No"}`,
+          `Created: ${new Date(datasetResult.createdAt).toLocaleString()}`,
+          `Updated: ${new Date(datasetResult.updatedAt).toLocaleString()}`,
+        ];
+
+        if (datasetResult.description) {
+          detailItems.splice(1, 0, `Description: ${datasetResult.description}`);
+        }
+
+        if (datasetResult.tags && datasetResult.tags.length > 0) {
+          detailItems.push(`Tags: ${datasetResult.tags.join(", ")}`);
+        }
+
+        // Show dataset information with action options
+        const action = await vscode.window.showQuickPick(
+          [
+            {
+              label: "$(file) View Files",
+              description: "Show files in this dataset",
+              action: "files",
+            },
+            { label: "$(add) Add Files", description: "Add more files to dataset", action: "add" },
+            {
+              label: "$(trash) Delete Dataset",
+              description: "Delete this dataset",
+              action: "delete",
+            },
+            {
+              label: "$(copy) Copy ID",
+              description: "Copy dataset ID to clipboard",
+              action: "copy",
+            },
+            {
+              label: "$(info) Show Details",
+              description: "View full dataset details",
+              action: "details",
+            },
+          ],
+          {
+            placeHolder: `Dataset: ${datasetResult.name} (${datasetResult.fileCount} files)`,
+            title: "Dataset Actions",
+          },
+        );
+
+        if (action) {
+          switch (action.action) {
+            case "files":
+              // Show files in the dataset
+              if (datasetResult.files.length > 0) {
+                const fileItems = datasetResult.files.map((hash: string, index: number) => ({
+                  label: `File ${index + 1}`,
+                  description: hash,
+                  hash,
+                }));
+                const selectedFile = await vscode.window.showQuickPick(fileItems, {
+                  placeHolder: "Select a file to open",
+                });
+                if (selectedFile) {
+                  await vscode.commands.executeCommand("lighthouse.vscode.openFile", {
+                    hash: selectedFile.hash,
+                    name: selectedFile.label,
+                  });
+                }
+              } else {
+                vscode.window.showInformationMessage("This dataset has no files yet.");
+              }
+              break;
+            case "add":
+              await this.handleAddFilesToDataset(datasetResult.id);
+              break;
+            case "delete":
+              await this.handleDeleteDataset(datasetResult.id, datasetResult.name);
+              break;
+            case "copy":
+              await vscode.env.clipboard.writeText(datasetResult.id);
+              vscode.window.showInformationMessage("Dataset ID copied to clipboard");
+              break;
+            case "details":
+              vscode.window.showInformationMessage(detailItems.join("\n"), { modal: true });
+              break;
+          }
+        }
       } catch (error) {
         progress.fail(error as Error);
         this.statusBar.showError("Dataset load failed");
@@ -688,6 +848,92 @@ Try again with a smaller file or check your network connection.`;
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to open dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Handle adding files to an existing dataset
+   */
+  private async handleAddFilesToDataset(datasetId: string): Promise<void> {
+    const fileUris = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: true,
+      openLabel: "Add Files",
+      title: "Select files to add to the dataset",
+    });
+
+    if (!fileUris || fileUris.length === 0) {
+      return;
+    }
+
+    const operationId = `dataset-update-${Date.now()}`;
+    const progress = this.progressStreamer.startProgress(
+      operationId,
+      `Adding ${fileUris.length} files to dataset`,
+    );
+
+    try {
+      const filePaths = fileUris.map((uri) => uri.fsPath);
+      const result = await this.sdk.updateDataset(datasetId, {
+        addFiles: filePaths,
+      });
+
+      progress.complete(result);
+      this.statusBar.showSuccess(`Added ${fileUris.length} files to dataset`);
+      await this.treeProvider.refresh();
+
+      vscode.window.showInformationMessage(
+        `Successfully added ${fileUris.length} files to the dataset!`,
+      );
+    } catch (error) {
+      progress.fail(error as Error);
+      this.statusBar.showError("Failed to add files");
+      vscode.window.showErrorMessage(
+        `Failed to add files: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Handle deleting a dataset
+   */
+  private async handleDeleteDataset(datasetId: string, datasetName: string): Promise<void> {
+    const confirmation = await vscode.window.showWarningMessage(
+      `Are you sure you want to delete dataset "${datasetName}"?`,
+      { modal: true },
+      "Delete Metadata Only",
+      "Delete with Files",
+    );
+
+    if (!confirmation) {
+      return;
+    }
+
+    const deleteFiles = confirmation === "Delete with Files";
+
+    const operationId = `dataset-delete-${Date.now()}`;
+    const progress = this.progressStreamer.startProgress(
+      operationId,
+      `Deleting dataset: ${datasetName}`,
+    );
+
+    try {
+      await this.sdk.deleteDataset(datasetId, deleteFiles);
+
+      progress.complete({ deleted: true });
+      this.statusBar.showSuccess(`Dataset "${datasetName}" deleted`);
+      await this.treeProvider.refresh();
+
+      vscode.window.showInformationMessage(
+        `Dataset "${datasetName}" has been deleted${deleteFiles ? " along with its files" : ""}.`,
+      );
+    } catch (error) {
+      progress.fail(error as Error);
+      this.statusBar.showError("Failed to delete dataset");
+      vscode.window.showErrorMessage(
+        `Failed to delete dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -798,6 +1044,9 @@ Try again with a smaller file or check your network connection.`;
         });
         await this.sdk.initialize();
 
+        // Update workspace provider with new SDK instance
+        this.workspaceProvider.setSDK(this.sdk);
+
         // Update MCP client API key if connected
         if (this.mcpClient) {
           this.mcpClient.updateApiKey(apiKey);
@@ -816,5 +1065,161 @@ Try again with a smaller file or check your network connection.`;
       console.error("Error handling configuration change:", error);
       this.statusBar.showError("Configuration update failed");
     }
+  }
+
+  /**
+   * Handle list datasets command - shows all datasets in a quick pick
+   */
+  private async handleListDatasets(): Promise<void> {
+    try {
+      const config = vscode.workspace.getConfiguration("lighthouse.vscode");
+      const apiKey = config.get<string>("apiKey");
+
+      if (!apiKey || apiKey.trim() === "") {
+        vscode.window.showErrorMessage("Please configure your Lighthouse API key first.");
+        return;
+      }
+
+      const operationId = `list-datasets-${Date.now()}`;
+      const progress = this.progressStreamer.startProgress(operationId, "Loading datasets...");
+
+      try {
+        const response = await this.sdk.listDatasets(100, 0);
+
+        progress.complete(response);
+
+        if (response.datasets.length === 0) {
+          vscode.window.showInformationMessage(
+            "No datasets found. Create one using 'Lighthouse: Create Dataset'.",
+          );
+          return;
+        }
+
+        // Format datasets for quick pick
+        const datasetItems = response.datasets.map((dataset) => ({
+          label: `$(database) ${dataset.name}`,
+          description: `${dataset.fileCount} files • ${this.formatBytes(dataset.totalSize)}`,
+          detail: dataset.description || "No description",
+          dataset,
+        }));
+
+        const selected = await vscode.window.showQuickPick(datasetItems, {
+          placeHolder: `Select a dataset (${response.total} total)`,
+          title: "Lighthouse Datasets",
+        });
+
+        if (selected) {
+          await this.handleOpenDataset(selected.dataset);
+        }
+      } catch (error) {
+        progress.fail(error as Error);
+        throw error;
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to list datasets: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Handle delete dataset command - prompts user to select and delete a dataset
+   */
+  private async handleDeleteDatasetCommand(): Promise<void> {
+    try {
+      const config = vscode.workspace.getConfiguration("lighthouse.vscode");
+      const apiKey = config.get<string>("apiKey");
+
+      if (!apiKey || apiKey.trim() === "") {
+        vscode.window.showErrorMessage("Please configure your Lighthouse API key first.");
+        return;
+      }
+
+      // Get list of datasets
+      const response = await this.sdk.listDatasets(100, 0);
+
+      if (response.datasets.length === 0) {
+        vscode.window.showInformationMessage("No datasets available to delete.");
+        return;
+      }
+
+      // Show quick pick to select dataset
+      const datasetItems = response.datasets.map((dataset) => ({
+        label: dataset.name,
+        description: `${dataset.fileCount} files`,
+        detail: dataset.id,
+        dataset,
+      }));
+
+      const selected = await vscode.window.showQuickPick(datasetItems, {
+        placeHolder: "Select a dataset to delete",
+        title: "Delete Dataset",
+      });
+
+      if (selected) {
+        await this.handleDeleteDataset(selected.dataset.id, selected.dataset.name);
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to delete dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Handle add files to dataset command - prompts user to select dataset and files
+   */
+  private async handleAddFilesToDatasetCommand(): Promise<void> {
+    try {
+      const config = vscode.workspace.getConfiguration("lighthouse.vscode");
+      const apiKey = config.get<string>("apiKey");
+
+      if (!apiKey || apiKey.trim() === "") {
+        vscode.window.showErrorMessage("Please configure your Lighthouse API key first.");
+        return;
+      }
+
+      // Get list of datasets
+      const response = await this.sdk.listDatasets(100, 0);
+
+      if (response.datasets.length === 0) {
+        vscode.window.showInformationMessage(
+          "No datasets available. Create one first using 'Lighthouse: Create Dataset'.",
+        );
+        return;
+      }
+
+      // Show quick pick to select dataset
+      const datasetItems = response.datasets.map((dataset) => ({
+        label: dataset.name,
+        description: `${dataset.fileCount} files`,
+        detail: dataset.id,
+        dataset,
+      }));
+
+      const selected = await vscode.window.showQuickPick(datasetItems, {
+        placeHolder: "Select a dataset to add files to",
+        title: "Add Files to Dataset",
+      });
+
+      if (selected) {
+        await this.handleAddFilesToDataset(selected.dataset.id);
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to add files to dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Format bytes to human-readable string
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 }

@@ -68,6 +68,24 @@
         "title": "Test Connection",
         "category": "Lighthouse",
         "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "lighthouse.vscode.listDatasets",
+        "title": "List All Datasets",
+        "category": "Lighthouse",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "lighthouse.vscode.deleteDataset",
+        "title": "Delete Dataset",
+        "category": "Lighthouse",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "lighthouse.vscode.addFilesToDataset",
+        "title": "Add Files to Dataset",
+        "category": "Lighthouse",
+        "icon": "$(add)"
       }
     ],
     "views": {
@@ -121,6 +139,18 @@
         },
         {
           "command": "lighthouse.vscode.testConnection",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "lighthouse.vscode.listDatasets",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "lighthouse.vscode.deleteDataset",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "lighthouse.vscode.addFilesToDataset",
           "when": "workspaceFolderCount > 0"
         }
       ]
