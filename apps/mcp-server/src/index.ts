@@ -139,7 +139,12 @@ Examples:
 }
 
 // Run main function if this is the entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Handle URL encoding differences (spaces become %20 in import.meta.url)
+const currentFileUrl = import.meta.url;
+const expectedFileUrl = `file://${process.argv[1]}`;
+const expectedFileUrlEncoded = `file://${encodeURI(process.argv[1] || "").replace(/%2F/g, "/")}`;
+
+if (currentFileUrl === expectedFileUrl || currentFileUrl === expectedFileUrlEncoded) {
   main().catch((error) => {
     // Use stderr to avoid corrupting MCP stdio protocol on stdout
     process.stderr.write(`Failed to start server: ${error}\n`);
