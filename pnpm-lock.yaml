@@ -159,8 +159,8 @@ importers:
         specifier: ^0.2.1
         version: 0.2.1
       "@lighthouse-web3/sdk":
-        specifier: ^0.2.3
-        version: 0.2.9
+        specifier: ^0.4.3
+        version: 0.4.3
       axios:
         specifier: ^1.6.0
         version: 1.12.2
@@ -1852,23 +1852,21 @@ packages:
       joi: 17.13.3
     dev: false
 
-  /@lighthouse-web3/sdk@0.2.9:
+  /@lighthouse-web3/sdk@0.4.3:
     resolution:
       {
-        integrity: sha512-XfIXMSo7LeIu4jiEbR12B2ICapZeldufFOj95z49Ceh9Qn+mOA7sY6+K+hQB6eItHjZNhbd7UOWbV2ofYpVwpg==,
+        integrity: sha512-MQljhqRZ7cG8qcQOU2ngHpNEiZ5PvSwbrftnVFsJ+cBmAb1RkUqndJcbsxD31CnfNcLAGVuDx5JYJilRidqing==,
       }
     hasBin: true
     dependencies:
       "@lighthouse-web3/kavach": 0.1.9
       "@peculiar/webcrypto": 1.5.0
-      axios: 0.24.0
       bls-eth-wasm: 1.4.0
       cli-spinner: 0.2.10
       commander: 10.0.1
       conf: 10.2.0
       crypto-js: 4.2.0
       ethers: 6.15.0
-      form-data: 4.0.4
       fs-extra: 11.3.2
       kleur: 4.1.5
       mime-types: 2.1.35
@@ -1877,7 +1875,6 @@ packages:
       recursive-fs: 2.1.0
     transitivePeerDependencies:
       - bufferutil
-      - debug
       - utf-8-validate
     dev: false
 
@@ -3144,17 +3141,6 @@ packages:
       possible-typed-array-names: 1.1.0
     dev: false
 
-  /axios@0.24.0:
-    resolution:
-      {
-        integrity: sha512-Q6cWsys88HoPgAaFAVUb0WpPk0O8iTeisR9IMqy9G8AbO4NlpVknrnQS03zzF9PGAWgO3cgletO3VjV/P7VztA==,
-      }
-    dependencies:
-      follow-redirects: 1.15.11
-    transitivePeerDependencies:
-      - debug
-    dev: false
-
   /axios@1.12.2:
     resolution:
       {
@@ -3783,7 +3769,7 @@ packages:
       json-schema-typed: 7.0.3
       onetime: 5.1.2
       pkg-up: 3.1.0
-      semver: 7.7.2
+      semver: 7.7.3
     dev: false
 
   /confbox@0.1.8:
