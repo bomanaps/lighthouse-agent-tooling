@@ -62,6 +62,7 @@
   "scripts": {
     "build": "tsc -p ./",
     "dev": "tsc -watch -p ./",
+    "type-check": "tsc --noEmit",
     "package": "vsce package",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
