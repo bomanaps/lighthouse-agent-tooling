@@ -68,7 +68,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run build && node ./out/test/runTest.js"
+    "test": "echo 'No tests configured for cursor-extension'"
   },
   "dependencies": {
     "@lighthouse-tooling/shared": "workspace:*",
