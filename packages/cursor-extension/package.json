@@ -68,7 +68,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "echo 'No tests configured for cursor-extension'"
+    "test": "pnpm run type-check"
   },
   "dependencies": {
     "@lighthouse-tooling/shared": "workspace:*",

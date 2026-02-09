@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Root workspace dependencies
+  # Root workspace dependencies (npm ecosystem works with pnpm workspaces)
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
