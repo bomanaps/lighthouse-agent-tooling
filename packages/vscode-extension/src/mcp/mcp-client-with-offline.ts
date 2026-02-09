@@ -34,7 +34,7 @@ export interface OfflineMCPClientConfig extends MCPClientConfig {
 export class OfflineMCPClient extends MCPClient implements OperationExecutor {
   private offlineQueue: OperationQueue;
   private connectionMonitor: ConnectionMonitor;
-  private logger: Logger;
+  private offlineLogger: Logger;
   private offlineConfig: Required<Omit<OfflineMCPClientConfig, keyof MCPClientConfig>>;
   private statusBarItem: vscode.StatusBarItem;
   private queuePersistencePath: string;
@@ -49,7 +49,7 @@ export class OfflineMCPClient extends MCPClient implements OperationExecutor {
       enableConnectionMonitoring: config.enableConnectionMonitoring ?? true,
     };
 
-    this.logger = Logger.getInstance({
+    this.offlineLogger = Logger.getInstance({
       level: "info",
       component: "OfflineMCPClient",
     });
@@ -220,7 +220,7 @@ export class OfflineMCPClient extends MCPClient implements OperationExecutor {
         args,
       });
 
-      this.logger.info("Operation queued", {
+      this.offlineLogger.info("Operation queued", {
         id: operationId,
         toolName,
       });
@@ -234,7 +234,7 @@ export class OfflineMCPClient extends MCPClient implements OperationExecutor {
         },
       };
     } catch (error) {
-      this.logger.error("Failed to queue operation", error as Error);
+      this.offlineLogger.error("Failed to queue operation", error as Error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to queue operation",
@@ -265,7 +265,7 @@ export class OfflineMCPClient extends MCPClient implements OperationExecutor {
       args: Record<string, unknown>;
     };
 
-    this.logger.info("Executing queued operation", {
+    this.offlineLogger.info("Executing queued operation", {
       id: operation.id,
       toolName,
     });
@@ -403,9 +403,9 @@ export class OfflineMCPClient extends MCPClient implements OperationExecutor {
       const dir = path.dirname(this.queuePersistencePath);
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(this.queuePersistencePath, JSON.stringify(operations, null, 2));
-      this.logger.debug("Queue persisted", { count: operations.length });
+      this.offlineLogger.debug("Queue persisted", { count: operations.length });
     } catch (error) {
-      this.logger.error("Failed to persist queue", error as Error);
+      this.offlineLogger.error("Failed to persist queue", error as Error);
     }
   }
 
@@ -418,13 +418,13 @@ export class OfflineMCPClient extends MCPClient implements OperationExecutor {
       const operations = JSON.parse(data) as QueuedOperation[];
       await this.offlineQueue.loadQueue(operations);
       this.updateStatusBar();
-      this.logger.info("Queue loaded from persistence", {
+      this.offlineLogger.info("Queue loaded from persistence", {
         count: operations.length,
       });
     } catch (error) {
       // File might not exist on first run
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        this.logger.error("Failed to load persisted queue", error as Error);
+        this.offlineLogger.error("Failed to load persisted queue", error as Error);
       }
     }
   }

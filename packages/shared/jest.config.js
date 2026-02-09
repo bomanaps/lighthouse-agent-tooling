@@ -10,5 +10,6 @@ module.exports = {
   setupFilesAfterEnv: ["<rootDir>/../../jest.setup.js"],
   moduleNameMapper: {
     "^@lighthouse-tooling/(.*)$": "<rootDir>/../$1/src",
+    "^(\\.{1,2}/.*)\\.js$": "$1",
   },
 };

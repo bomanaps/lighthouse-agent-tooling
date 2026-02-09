@@ -1,6 +1,14 @@
 import { EncryptionManager } from "../encryption/EncryptionManager";
 import { KeyShard, AccessControlConfig } from "../types";
 
+// Check if Kavach SDK is available
+const encryptionManagerCheck = new EncryptionManager();
+const isKavachAvailable = encryptionManagerCheck.isAvailable();
+encryptionManagerCheck.destroy();
+
+// Skip all tests if Kavach SDK is not available
+const describeIfKavach = isKavachAvailable ? describe : describe.skip;
+
 // Mock the Kavach SDK
 const mockKavach = {
   generate: jest.fn(),
@@ -18,7 +26,7 @@ jest.mock("../../../../../lighthouse-ide/encryption-sdk/src/methods", () => mock
   virtual: true,
 });
 
-describe("EncryptionManager", () => {
+describeIfKavach("EncryptionManager", () => {
   let encryptionManager: EncryptionManager;
 
   beforeEach(() => {

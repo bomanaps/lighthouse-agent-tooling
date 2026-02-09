@@ -45,8 +45,8 @@ describe("AIAgentHooksImpl", () => {
 
       expect(context).toBeDefined();
       expect(context).toHaveProperty("projectPath");
-      expect(context).toHaveProperty("files");
-      expect(context).toHaveProperty("datasets");
+      expect(context).toHaveProperty("lighthouseFiles");
+      expect(context).toHaveProperty("activeDatasets");
     });
   });
 

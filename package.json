@@ -17,10 +17,12 @@
     "format:check": "prettier --check .",
     "ci:local": "pnpm run lint && pnpm run format:check",
     "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "type-check": "turbo run type-check",
     "clean": "turbo run clean",
     "prepare": "husky",
-    "test:coverage": "turbo run test:coverage",
-    "verify-tests": "node scripts/verify-tests.js"
+    "verify-tests": "node scripts/verify-tests.js",
+    "package": "turbo run package"
   },
   "repository": {
     "type": "git",

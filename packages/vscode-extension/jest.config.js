@@ -10,6 +10,7 @@ module.exports = {
   moduleNameMapper: {
     "^@lighthouse-tooling/(.*)$": "<rootDir>/../$1/src",
     "^vscode$": "<rootDir>/src/__mocks__/vscode.ts",
+    "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
 };

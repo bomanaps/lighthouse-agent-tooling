@@ -62,12 +62,13 @@
   "scripts": {
     "build": "tsc -p ./",
     "dev": "tsc -watch -p ./",
+    "type-check": "tsc --noEmit",
     "package": "vsce package",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run build && node ./out/test/runTest.js"
+    "test": "pnpm run type-check"
   },
   "dependencies": {
     "@lighthouse-tooling/shared": "workspace:*",

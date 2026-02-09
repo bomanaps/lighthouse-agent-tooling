@@ -175,6 +175,7 @@
     "watch": "node esbuild.js --watch",
     "package": "npm run build -- --production && vsce package --no-dependencies",
     "build:tsc": "tsc -p ./",
+    "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

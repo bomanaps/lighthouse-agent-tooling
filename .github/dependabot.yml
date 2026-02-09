@@ -1,18 +1,42 @@
 version: 2
 updates:
-  - package-ecosystem: "pnpm"
+  # Root workspace dependencies (npm ecosystem works with pnpm workspaces)
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-  - package-ecosystem: "pnpm"
-    directory: "/packages/shared"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        patterns:
+          - "@types/*"
+          - "eslint*"
+          - "prettier"
+          - "typescript"
+          - "jest"
+          - "vitest"
+          - "ts-jest"
+      build-tools:
+        patterns:
+          - "turbo"
+          - "esbuild"
+          - "vsce"
+          - "rimraf"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
       interval: "weekly"
-  - package-ecosystem: "pnpm"
-    directory: "/packages/types"
-    schedule:
-      interval: "weekly"
-  - package-ecosystem: "pnpm"
-    directory: "/apps/api"
-    schedule:
-      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "ci"
+      - "dependencies"

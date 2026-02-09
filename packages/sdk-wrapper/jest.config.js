@@ -26,4 +26,8 @@ module.exports = {
   },
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
   testTimeout: 10000,
+  moduleNameMapper: {
+    "^@lighthouse-tooling/(.*)$": "<rootDir>/../$1/src",
+    "^(\\.{1,2}/.*)\\.js$": "$1",
+  },
 };
