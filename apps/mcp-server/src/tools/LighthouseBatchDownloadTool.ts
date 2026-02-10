@@ -3,6 +3,7 @@
  */
 
 import fs from "fs/promises";
+import { constants as fsConstants } from "fs";
 import { Logger } from "@lighthouse-tooling/shared";
 import { MCPToolDefinition, ExecutionTimeCategory } from "@lighthouse-tooling/types";
 import { BatchFileResult, BatchDownloadFileResult } from "@lighthouse-tooling/sdk-wrapper";
@@ -150,7 +151,7 @@ export class LighthouseBatchDownloadTool {
       }
 
       try {
-        await fs.access(params.outputDir, fs.constants.W_OK);
+        await fs.access(params.outputDir, fsConstants.W_OK);
       } catch {
         // Try to create directory
         try {

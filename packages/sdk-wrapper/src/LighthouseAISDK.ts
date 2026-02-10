@@ -442,6 +442,14 @@ Maximum file size may be exceeded. Try uploading a smaller file.`);
             throw new Error(`Invalid CID format: ${cid}. Expected CIDv0 (Qm...) or CIDv1 (baf...)`);
           }
 
+          // TODO: Decryption support requires Kavach SDK integration
+          if (options.decrypt) {
+            throw new Error(
+              "Decryption during download is not yet implemented. " +
+                "Download the file first, then use the encryption manager to decrypt.",
+            );
+          }
+
           // Ensure output directory exists
           const outputDir = dirname(outputPath);
           try {
@@ -458,8 +466,10 @@ Maximum file size may be exceeded. Try uploading a smaller file.`);
           const gatewayUrl = `https://gateway.lighthouse.storage/ipfs/${cid}`;
 
           // Calculate timeout based on expected size (minimum 2 minutes, +30s per 10MB)
+          // User-provided timeout takes precedence
           const expectedSizeMB = (options.expectedSize || 10 * 1024 * 1024) / (1024 * 1024);
-          const dynamicTimeout = Math.max(120000, 120000 + (expectedSizeMB / 10) * 30000);
+          const dynamicTimeout =
+            options.timeout ?? Math.max(120000, 120000 + (expectedSizeMB / 10) * 30000);
 
           // Update progress to downloading phase
           this.progress.updateProgress(operationId, 0, "downloading");
