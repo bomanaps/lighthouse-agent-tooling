@@ -102,16 +102,6 @@ export class LighthouseBatchDownloadTool {
       return /^[a-zA-Z0-9]+$/.test(cid);
     }
 
-    // For testing, be more permissive
-    if (cid.startsWith("QmTest") || cid.startsWith("QmNonExist")) {
-      return cid.length >= 32 && /^[a-zA-Z0-9]+$/.test(cid);
-    }
-
-    // Accept any Qm CID that's at least 46 characters
-    if (cid.startsWith("Qm") && cid.length >= 46) {
-      return /^[a-zA-Z0-9]+$/.test(cid);
-    }
-
     return false;
   }
 
@@ -210,15 +200,6 @@ export class LighthouseBatchDownloadTool {
         return {
           success: false,
           error: `Invalid parameters: ${validationError}`,
-          executionTime: Date.now() - startTime,
-        };
-      }
-
-      // Check if batchDownloadFiles is available
-      if (!this.service.batchDownloadFiles) {
-        return {
-          success: false,
-          error: "Batch download not available in current service implementation",
           executionTime: Date.now() - startTime,
         };
       }

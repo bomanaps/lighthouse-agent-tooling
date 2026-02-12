@@ -161,7 +161,7 @@ export interface ILighthouseService {
   /**
    * Batch upload multiple files with configurable concurrency
    */
-  batchUploadFiles?(
+  batchUploadFiles(
     filePaths: string[],
     options?: BatchUploadOptions,
   ): Promise<BatchOperationResult<FileInfo>>;
@@ -169,7 +169,7 @@ export interface ILighthouseService {
   /**
    * Batch download multiple files by CID with configurable concurrency
    */
-  batchDownloadFiles?(
+  batchDownloadFiles(
     cids: string[],
     options?: BatchDownloadOptions,
   ): Promise<BatchOperationResult<BatchDownloadFileResult>>;

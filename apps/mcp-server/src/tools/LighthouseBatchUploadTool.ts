@@ -229,15 +229,6 @@ export class LighthouseBatchUploadTool {
         };
       }
 
-      // Check if batchUploadFiles is available
-      if (!this.service.batchUploadFiles) {
-        return {
-          success: false,
-          error: "Batch upload not available in current service implementation",
-          executionTime: Date.now() - startTime,
-        };
-      }
-
       this.logger.info("Starting batch upload", {
         fileCount: params.filePaths.length,
         concurrency: params.concurrency || 3,
