@@ -20,7 +20,7 @@ jobs:
     name: Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
 
@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
 
@@ -69,7 +69,7 @@ jobs:
         working-directory: packages/vscode-extension
 
       - name: Upload VSCode extension artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: vscode-extension
           path: packages/vscode-extension/*.vsix
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
 
@@ -100,7 +100,7 @@ jobs:
         working-directory: packages/cursor-extension
 
       - name: Upload Cursor extension artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cursor-extension
           path: packages/cursor-extension/*.vsix
@@ -115,16 +115,16 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download VSCode extension
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: vscode-extension
           path: ./artifacts/vscode
 
       - name: Download Cursor extension
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: cursor-extension
           path: ./artifacts/cursor
@@ -159,7 +159,7 @@ jobs:
     env:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
 
