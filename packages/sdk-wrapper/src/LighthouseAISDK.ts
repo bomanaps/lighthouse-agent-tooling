@@ -2,13 +2,14 @@ import { EventEmitter } from "eventemitter3";
 import lighthouse from "@lighthouse-web3/sdk";
 import { readFileSync, createWriteStream, promises as fsPromises } from "fs";
 import { dirname } from "path";
-import axios from "axios";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 import { AuthenticationManager } from "./auth/AuthenticationManager";
 import { ProgressTracker } from "./progress/ProgressTracker";
 import { ErrorHandler } from "./errors/ErrorHandler";
 import { CircuitBreaker } from "./errors/CircuitBreaker";
 import { EncryptionManager } from "./encryption/EncryptionManager";
 import { RateLimiter } from "./utils/RateLimiter";
+import { ConnectionPool, ConnectionPoolConfig } from "./pool";
 import {
   LighthouseConfig,
   UploadOptions,
@@ -78,6 +79,7 @@ export class LighthouseAISDK extends EventEmitter {
   private circuitBreaker: CircuitBreaker;
   private encryption: EncryptionManager;
   private rateLimiter: RateLimiter;
+  private connectionPool: ConnectionPool | null;
   private memoryManager: MemoryManager;
   private config: LighthouseConfig;
 
@@ -100,6 +102,22 @@ export class LighthouseAISDK extends EventEmitter {
       checkInterval: 5000,
       autoCleanup: true,
     });
+
+    // Initialize connection pool (unless explicitly disabled)
+    if (config.pool === false) {
+      this.connectionPool = null;
+    } else {
+      const poolConfig: ConnectionPoolConfig = {
+        maxConnections: 10,
+        acquireTimeout: 5000,
+        idleTimeout: 60000,
+        requestTimeout: config.timeout || 30000,
+        keepAlive: true,
+        maxSockets: 50,
+        ...(typeof config.pool === "object" ? config.pool : {}),
+      };
+      this.connectionPool = new ConnectionPool(poolConfig);
+    }
 
     // Forward authentication events
     this.auth.on("auth:error", (error) => this.emit("auth:error", error));
@@ -144,6 +162,15 @@ export class LighthouseAISDK extends EventEmitter {
     this.encryption.on("access:control:error", (event) =>
       this.emit("encryption:access:control:error", event),
     );
+
+    // Forward connection pool events
+    if (this.connectionPool) {
+      this.connectionPool.on("acquire", (event) => this.emit("pool:acquire", event));
+      this.connectionPool.on("create", (event) => this.emit("pool:create", event));
+      this.connectionPool.on("queue", (event) => this.emit("pool:queue", event));
+      this.connectionPool.on("release", (event) => this.emit("pool:release", event));
+      this.connectionPool.on("cleanup", (event) => this.emit("pool:cleanup", event));
+    }
 
     // Forward memory manager events
     this.memoryManager.on("backpressure:start", (event) =>
@@ -364,6 +391,25 @@ Maximum file size may be exceeded. Try uploading a smaller file.`);
   }
 
   /**
+   * Execute an HTTP request using the connection pool if available,
+   * otherwise fall back to a direct axios call.
+   */
+  private async executeHttpRequest<T = any>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+    if (this.connectionPool) {
+      const instance = await this.connectionPool.acquire();
+      try {
+        return await instance.request<T>(config);
+      } finally {
+        this.connectionPool.release(instance);
+      }
+    } else {
+      const axiosLib: { request: (config: AxiosRequestConfig) => Promise<AxiosResponse<T>> } =
+        eval("require")("axios");
+      return axiosLib.request(config);
+    }
+  }
+
+  /**
    * Upload file via direct API call as fallback when SDK fails
    */
   private async uploadViDirectAPI(
@@ -375,12 +421,14 @@ Maximum file size may be exceeded. Try uploading a smaller file.`);
     // when the standard SDK fails (usually due to node.lighthouse.storage being down)
 
     const FormData = eval("require")("form-data");
-    const axios = eval("require")("axios");
 
     const formData = new FormData();
     formData.append("file", fileBuffer, fileName);
 
-    const response = await axios.post("https://api.lighthouse.storage/api/v0/add", formData, {
+    const response = await this.executeHttpRequest({
+      method: "POST",
+      url: "https://api.lighthouse.storage/api/v0/add",
+      data: formData,
       headers: {
         ...formData.getHeaders(),
         Authorization: `Bearer ${apiKey}`,
@@ -930,6 +978,24 @@ Check your internet connection and try again.`);
     lastFailureTime: number;
   } {
     return this.circuitBreaker.getMetrics();
+  }
+
+  /**
+   * Get connection pool statistics.
+   * Returns null if the connection pool is disabled.
+   */
+  getConnectionPoolStats(): {
+    totalConnections: number;
+    activeConnections: number;
+    idleConnections: number;
+    queuedRequests: number;
+    totalRequests: number;
+    averageWaitTime: number;
+  } | null {
+    if (!this.connectionPool) {
+      return null;
+    }
+    return this.connectionPool.getStats();
   }
 
   /**
@@ -1627,6 +1693,9 @@ Check your internet connection and try again.`);
     this.auth.destroy();
     this.progress.cleanup();
     this.encryption.destroy();
+    if (this.connectionPool) {
+      this.connectionPool.destroy();
+    }
     this.memoryManager.destroy();
     this.removeAllListeners();
   }

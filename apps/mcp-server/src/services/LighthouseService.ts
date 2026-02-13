@@ -5,6 +5,7 @@
 import {
   LighthouseAISDK,
   EnhancedAccessCondition,
+  ConnectionPoolConfig,
   BatchUploadOptions,
   BatchDownloadOptions,
   BatchOperationResult,
@@ -29,7 +30,7 @@ export class LighthouseService implements ILighthouseService {
   private fileCache: Map<string, StoredFile> = new Map();
   private datasetCache: Map<string, Dataset> = new Map();
 
-  constructor(apiKey: string, logger?: Logger, dbPath?: string) {
+  constructor(apiKey: string, logger?: Logger, dbPath?: string, poolConfig?: ConnectionPoolConfig) {
     this.logger = logger || Logger.getInstance({ level: "info", component: "LighthouseService" });
     this.dbPath = dbPath;
 
@@ -41,6 +42,7 @@ export class LighthouseService implements ILighthouseService {
       timeout: 30000,
       maxRetries: 3,
       debug: false,
+      pool: poolConfig,
     });
 
     // Set up event listeners for progress tracking
@@ -450,6 +452,7 @@ export class LighthouseService implements ILighthouseService {
       activeOperations: this.sdk.getActiveOperations(),
       errorMetrics: this.sdk.getErrorMetrics(),
       circuitBreaker: this.sdk.getCircuitBreakerStatus(),
+      connectionPool: this.sdk.getConnectionPoolStats(),
     };
   }
 
